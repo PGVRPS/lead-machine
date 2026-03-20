@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { Loader2, Play, CheckCircle, AlertCircle, Zap, MapPin, Flame } from 'lucide-react'
-import { GULF_COAST_REGIONS, SEARCH_TERMS } from '@/lib/scoring/config'
 import type { LeadWithDetails } from '@/types/database'
 import ScoreBadge from '@/components/leads/ScoreBadge'
 import Link from 'next/link'
@@ -10,8 +9,11 @@ import Link from 'next/link'
 type PipelineStatus = 'idle' | 'scraping_buildings' | 'scraping_reviews' | 'analyzing' | 'scoring' | 'complete' | 'error'
 
 export default function ScrapePage() {
-  const [selectedRegions, setSelectedRegions] = useState<string[]>(['Orange Beach, AL'])
-  const [selectedTerms, setSelectedTerms] = useState<string[]>(['condominium complex', 'condo resort', 'beach condo'])
+  const [availableRegions, setAvailableRegions] = useState<string[]>([])
+  const [availableTerms, setAvailableTerms] = useState<string[]>([])
+  const [configLoading, setConfigLoading] = useState(true)
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([])
+  const [selectedTerms, setSelectedTerms] = useState<string[]>([])
   const [reviewsLimit, setReviewsLimit] = useState(100)
   const [analyzeTop, setAnalyzeTop] = useState(5)
   const [status, setStatus] = useState<PipelineStatus>('idle')
@@ -19,6 +21,29 @@ export default function ScrapePage() {
   const [error, setError] = useState<string | null>(null)
   const [leads, setLeads] = useState<LeadWithDetails[]>([])
   const [summary, setSummary] = useState<Record<string, number> | null>(null)
+
+  // Load regions and search terms from API
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/settings')
+        const data = await res.json()
+        const regions = data.regions || []
+        const terms = data.searchTerms || []
+        setAvailableRegions(regions)
+        setAvailableTerms(terms)
+        // Default select first region and first 3 terms
+        setSelectedRegions(regions.slice(0, 1))
+        setSelectedTerms(terms.slice(0, 3))
+      } catch {
+        setAvailableRegions([])
+        setAvailableTerms([])
+      } finally {
+        setConfigLoading(false)
+      }
+    }
+    loadConfig()
+  }, [])
 
   // Poll for status while running
   useEffect(() => {
@@ -108,43 +133,55 @@ export default function ScrapePage() {
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium text-gray-700 block mb-2">Target Regions</label>
-            <div className="flex flex-wrap gap-2">
-              {GULF_COAST_REGIONS.map(region => (
-                <button
-                  key={region}
-                  onClick={() => toggleRegion(region)}
-                  disabled={isRunning}
-                  className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
-                    selectedRegions.includes(region)
-                      ? 'bg-blue-50 border-blue-300 text-blue-700'
-                      : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
-                  } ${isRunning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  <MapPin className="w-3 h-3 inline mr-1" />
-                  {region}
-                </button>
-              ))}
-            </div>
+            {configLoading ? (
+              <div className="flex items-center gap-2 text-sm text-gray-400"><Loader2 className="w-4 h-4 animate-spin" /> Loading regions...</div>
+            ) : availableRegions.length === 0 ? (
+              <p className="text-sm text-gray-400">No regions configured. <a href="/dashboard/settings" className="text-blue-500 hover:underline">Add regions in Settings</a></p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {availableRegions.map(region => (
+                  <button
+                    key={region}
+                    onClick={() => toggleRegion(region)}
+                    disabled={isRunning}
+                    className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                      selectedRegions.includes(region)
+                        ? 'bg-blue-50 border-blue-300 text-blue-700'
+                        : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                    } ${isRunning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  >
+                    <MapPin className="w-3 h-3 inline mr-1" />
+                    {region}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
             <label className="text-sm font-medium text-gray-700 block mb-2">Search Terms</label>
-            <div className="flex flex-wrap gap-2">
-              {SEARCH_TERMS.map(term => (
-                <button
-                  key={term}
-                  onClick={() => toggleTerm(term)}
-                  disabled={isRunning}
-                  className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
-                    selectedTerms.includes(term)
-                      ? 'bg-blue-50 border-blue-300 text-blue-700'
-                      : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
-                  } ${isRunning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  {term}
-                </button>
-              ))}
-            </div>
+            {configLoading ? (
+              <div className="flex items-center gap-2 text-sm text-gray-400"><Loader2 className="w-4 h-4 animate-spin" /> Loading terms...</div>
+            ) : availableTerms.length === 0 ? (
+              <p className="text-sm text-gray-400">No search terms configured. <a href="/dashboard/settings" className="text-blue-500 hover:underline">Add terms in Settings</a></p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {availableTerms.map(term => (
+                  <button
+                    key={term}
+                    onClick={() => toggleTerm(term)}
+                    disabled={isRunning}
+                    className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                      selectedTerms.includes(term)
+                        ? 'bg-blue-50 border-blue-300 text-blue-700'
+                        : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                    } ${isRunning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  >
+                    {term}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
