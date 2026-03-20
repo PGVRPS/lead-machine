@@ -3,56 +3,73 @@ import { GULF_COAST_REGIONS, SEARCH_TERMS } from '@/lib/scoring/config'
 
 // ── Scrape Config ──────────────────────────────────────────────────────
 
-export async function getScrapeConfig(): Promise<{ regions: string[]; searchTerms: string[] }> {
+export async function getScrapeConfig(): Promise<{
+  regions: string[]
+  searchTerms: string[]
+  scoringWeights: Record<string, number>
+  tierThresholds: Record<string, number>
+}> {
   const supabase = createServerClient()
 
   const { data, error } = await supabase
     .from('scrape_config')
-    .select('regions, search_terms')
+    .select('regions, search_terms, scoring_weights, tier_thresholds')
     .limit(1)
     .single()
+
+  const defaultWeights = { units_50_200: 25, units_200_350: 15, vacation_rentals: 20, parking_complaints: 20, security_patrol: 15, pass_price_40_plus: 10, google_parking_mentions: 10 }
+  const defaultThresholds = { immediate: 80, nurture: 60, monitor: 40 }
 
   if (error || !data) {
     return {
       regions: [...GULF_COAST_REGIONS],
       searchTerms: [...SEARCH_TERMS],
+      scoringWeights: defaultWeights,
+      tierThresholds: defaultThresholds,
     }
   }
 
   return {
     regions: (data.regions as string[]) || [...GULF_COAST_REGIONS],
     searchTerms: (data.search_terms as string[]) || [...SEARCH_TERMS],
+    scoringWeights: (data.scoring_weights as Record<string, number>) || defaultWeights,
+    tierThresholds: (data.tier_thresholds as Record<string, number>) || defaultThresholds,
   }
 }
 
-export async function updateScrapeConfig(regions: string[], searchTerms: string[]) {
+export async function updateScrapeConfig(
+  regions: string[],
+  searchTerms: string[],
+  scoringWeights?: Record<string, number>,
+  tierThresholds?: Record<string, number>
+) {
   const supabase = createServerClient()
 
-  // Check if a row exists
   const { data: existing } = await supabase
     .from('scrape_config')
     .select('id')
     .limit(1)
     .single()
 
+  const updateData: Record<string, unknown> = {
+    regions,
+    search_terms: searchTerms,
+    updated_at: new Date().toISOString(),
+  }
+  if (scoringWeights) updateData.scoring_weights = scoringWeights
+  if (tierThresholds) updateData.tier_thresholds = tierThresholds
+
   if (existing) {
     const { error } = await supabase
       .from('scrape_config')
-      .update({
-        regions,
-        search_terms: searchTerms,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', existing.id)
 
     if (error) throw new Error(`Update scrape config failed: ${error.message}`)
   } else {
     const { error } = await supabase
       .from('scrape_config')
-      .insert({
-        regions,
-        search_terms: searchTerms,
-      })
+      .insert(updateData)
 
     if (error) throw new Error(`Insert scrape config failed: ${error.message}`)
   }

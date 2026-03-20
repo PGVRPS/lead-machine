@@ -16,7 +16,7 @@ export async function GET() {
 export async function PUT(request: Request) {
   try {
     const body = await request.json()
-    const { regions, searchTerms } = body
+    const { regions, searchTerms, scoringWeights, tierThresholds } = body
 
     if (!Array.isArray(regions) || !Array.isArray(searchTerms)) {
       return Response.json(
@@ -25,7 +25,7 @@ export async function PUT(request: Request) {
       )
     }
 
-    await updateScrapeConfig(regions, searchTerms)
+    await updateScrapeConfig(regions, searchTerms, scoringWeights, tierThresholds)
     return Response.json({ success: true })
   } catch (error) {
     console.error('Failed to update scrape config:', error)

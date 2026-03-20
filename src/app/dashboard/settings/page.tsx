@@ -37,6 +37,12 @@ export default function SettingsPage() {
       const data = await res.json()
       setRegions(data.regions || [...GULF_COAST_REGIONS])
       setSearchTerms(data.searchTerms || [...SEARCH_TERMS])
+      if (data.scoringWeights && Object.keys(data.scoringWeights).length > 0) {
+        setWeights(data.scoringWeights)
+      }
+      if (data.tierThresholds && Object.keys(data.tierThresholds).length > 0) {
+        setThresholds(data.tierThresholds)
+      }
     } catch {
       setRegions([...GULF_COAST_REGIONS])
       setSearchTerms([...SEARCH_TERMS])
@@ -51,7 +57,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ regions, searchTerms }),
+        body: JSON.stringify({ regions, searchTerms, scoringWeights: weights, tierThresholds: thresholds }),
       })
       if (res.ok) {
         setSaved(true)
