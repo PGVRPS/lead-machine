@@ -205,15 +205,11 @@ Set the score cutoffs for each lead tier:
 
 #### Target Regions
 
-Shows the 7 Gulf Coast regions the system searches. These are also available on the Scrape page.
+Add or remove the geographic regions the system searches. Type a new region (e.g. "Hilton Head, SC") in the text field and click **Add** or press Enter. Click the **X** on any region to remove it. The system comes pre-loaded with 7 Gulf Coast cities but you can customize this to any location. Click **Save** at the top to persist changes — these regions will then appear as toggle options on the Scrape page.
 
 #### Search Terms
 
-The Google Maps queries used to find condo properties.
-
-#### API Keys
-
-Shows the status of each external service integration (Outscraper, Anthropic, Resend). Keys are stored as environment variables, not in the UI.
+Add or remove the Google Maps search queries used to find condo properties. Type a new term (e.g. "beach resort") and click **Add** or press Enter. Click the **X** on any term to remove it. Click **Save** to persist. Different terms surface different property types — "condominium association" finds HOA-managed buildings while "condo resort" finds vacation-oriented ones.
 
 ---
 

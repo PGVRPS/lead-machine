@@ -275,28 +275,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* API Keys */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="font-semibold mb-4">API Keys</h3>
-        <div className="space-y-4">
-          {[
-            { name: 'Outscraper API Key', env: 'OUTSCRAPER_API_KEY', status: 'Not configured', phase: 'Phase 3' },
-            { name: 'Anthropic API Key', env: 'ANTHROPIC_API_KEY', status: 'Not configured', phase: 'Phase 2' },
-            { name: 'Resend API Key', env: 'RESEND_API_KEY', status: 'Not configured', phase: 'Phase 4' },
-          ].map(key => (
-            <div key={key.env} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg">
-              <div>
-                <p className="text-sm font-medium">{key.name}</p>
-                <p className="text-xs text-gray-400">{key.env}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">{key.phase}</span>
-                <span className="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-500">{key.status}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   )
 }
