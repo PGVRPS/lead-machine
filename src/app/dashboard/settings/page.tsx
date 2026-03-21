@@ -33,7 +33,7 @@ export default function SettingsPage() {
 
   async function fetchConfig() {
     try {
-      const res = await fetch('/api/settings')
+      const res = await fetch('/api/settings', { cache: 'no-store' })
       const data = await res.json()
       setRegions(data.regions || [...GULF_COAST_REGIONS])
       setSearchTerms(data.searchTerms || [...SEARCH_TERMS])
