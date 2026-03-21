@@ -1,7 +1,7 @@
 import { getPropertyWithDetails, getLeadsWithDetails } from '@/lib/supabase/db'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, ExternalLink, Phone, Mail, MapPin, Star, Building, ParkingCircle, Home, Shield } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Phone, Mail, MapPin, Star, Building, ParkingCircle, Home, Shield, Linkedin } from 'lucide-react'
 import ScoreBadge from '@/components/leads/ScoreBadge'
 import AnalysisPanel from '@/components/leads/AnalysisPanel'
 
@@ -12,7 +12,6 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   if (!detail) notFound()
 
   const { property: lead, latestParking, latestUnits, latestRentals, score, contacts, reviews } = detail
-  const contact = contacts[0]
   const breakdown = score?.score_breakdown ?? {}
 
   const breakdownLabels: Record<string, string> = {
@@ -157,33 +156,46 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
         {/* Contact Info */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h3 className="font-semibold text-sm mb-4">Contact Info</h3>
-          {contact ? (
-            <div className="space-y-3">
-              {contact.management_company && (
-                <div>
+          <h3 className="font-semibold text-sm mb-4">Contact Info ({contacts.length})</h3>
+          {contacts.length > 0 ? (
+            <div className="space-y-4">
+              {/* Management Company (show once from first contact) */}
+              {contacts[0]?.management_company && (
+                <div className="pb-3 border-b border-gray-100">
                   <p className="text-xs text-gray-400">Management Company</p>
-                  <p className="text-sm font-medium">{contact.management_company}</p>
+                  <p className="text-sm font-medium">{contacts[0].management_company}</p>
                 </div>
               )}
-              {contact.contact_name && (
-                <div>
-                  <p className="text-xs text-gray-400">Contact</p>
-                  <p className="text-sm font-medium">{contact.contact_name}</p>
-                  {contact.contact_title && <p className="text-xs text-gray-500">{contact.contact_title}</p>}
+              {/* Individual contacts */}
+              {contacts.map((c: { id: string; contact_name: string | null; contact_title: string | null; email: string | null; phone: string | null; linkedin_url: string | null; source: string }) => (
+                <div key={c.id} className="space-y-1.5">
+                  {c.contact_name && (
+                    <div>
+                      <p className="text-sm font-medium">{c.contact_name}</p>
+                      {c.contact_title && <p className="text-xs text-gray-500">{c.contact_title}</p>}
+                    </div>
+                  )}
+                  {c.email && (
+                    <a href={`mailto:${c.email}`} className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5" /> {c.email}
+                    </a>
+                  )}
+                  {c.phone && (
+                    <p className="text-sm text-gray-600 flex items-center gap-1">
+                      <Phone className="w-3.5 h-3.5" /> {c.phone}
+                    </p>
+                  )}
+                  {c.linkedin_url && (
+                    <a href={c.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                      <Linkedin className="w-3.5 h-3.5" /> LinkedIn Profile
+                    </a>
+                  )}
+                  <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 capitalize">{c.source.replace('_', ' ')}</span>
                 </div>
-              )}
-              {contact.email && (
-                <div>
-                  <p className="text-xs text-gray-400">Email</p>
-                  <a href={`mailto:${contact.email}`} className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1">
-                    <Mail className="w-3.5 h-3.5" /> {contact.email}
-                  </a>
-                </div>
-              )}
+              ))}
             </div>
           ) : (
-            <p className="text-sm text-gray-400">No contact information yet</p>
+            <p className="text-sm text-gray-400">No contact information yet — run the pipeline to enrich</p>
           )}
         </div>
       </div>

@@ -5,6 +5,7 @@ import { estimateUnitCount } from '@/lib/ai/prompts/unit-estimation'
 import { detectVacationRentals } from '@/lib/ai/prompts/rental-detection'
 import { calculateLeadScore } from '@/lib/scoring/calculator'
 import { upsertProperty, insertReviews, insertAnalysis, upsertLeadScore, addPipelineStage } from '@/lib/supabase/db'
+import { enrichPropertyContacts } from '@/lib/enrichment/enrich-contacts'
 import { setStatus } from '@/lib/store'
 
 export const maxDuration = 300
@@ -149,7 +150,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    setStatus('complete', `Pipeline complete! ${dbProperties.length} properties scraped, ${analyzedCount} analyzed.`)
+    // ── Step 4: Contact Enrichment ──
+    setStatus('enriching', `Enriching contacts for ${entries.length} properties...`)
+
+    let enrichedCount = 0
+    for (let i = 0; i < entries.length; i++) {
+      const [dbId, data] = entries[i]
+      setStatus('enriching', `Finding contacts for ${data.name} (${i + 1}/${entries.length})...`)
+
+      try {
+        const enrichResult = await enrichPropertyContacts(
+          dbId,
+          data.name,
+          data.place.city || '',
+          data.place.site || null,
+        )
+        if (enrichResult.enriched) {
+          await addPipelineStage(dbId, 'enriched')
+          enrichedCount++
+        }
+      } catch (err) {
+        console.error(`Enrichment failed for ${data.name}:`, err)
+      }
+    }
+
+    setStatus('complete', `Pipeline complete! ${dbProperties.length} properties scraped, ${analyzedCount} analyzed, ${enrichedCount} enriched.`)
 
     return Response.json({
       success: true,
@@ -159,6 +184,7 @@ export async function POST(request: NextRequest) {
         analyzed: analyzedCount,
         immediate: immediateCount,
         nurture: nurtureCount,
+        enriched: enrichedCount,
       },
     })
   } catch (error) {

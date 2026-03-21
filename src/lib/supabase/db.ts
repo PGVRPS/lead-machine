@@ -230,6 +230,60 @@ export async function addPipelineStage(propertyId: string, stage: string, notes?
   })
 }
 
+// ── Contacts ───────────────────────────────────────────────────────────
+
+export async function insertContacts(
+  propertyId: string,
+  managementCompany: string | null,
+  contacts: Array<{
+    name: string | null
+    title: string | null
+    email: string | null
+    phone: string | null
+    linkedin_url?: string | null
+  }>
+) {
+  const supabase = createServerClient()
+
+  // Delete existing web_scrape contacts for this property (idempotent re-runs)
+  // Preserve manually-added contacts
+  await supabase.from('contacts').delete().eq('property_id', propertyId).eq('source', 'web_scrape')
+
+  if (contacts.length === 0 && managementCompany) {
+    // Insert a row with just the management company name
+    const { error } = await supabase.from('contacts').insert({
+      property_id: propertyId,
+      management_company: managementCompany,
+      source: 'web_scrape',
+      verified: false,
+    })
+    if (error) console.error('Insert contact (company only) failed:', error.message)
+    return 1
+  }
+
+  let inserted = 0
+  for (const contact of contacts) {
+    const { error } = await supabase.from('contacts').insert({
+      property_id: propertyId,
+      management_company: managementCompany,
+      contact_name: contact.name,
+      contact_title: contact.title,
+      email: contact.email,
+      phone: contact.phone,
+      linkedin_url: contact.linkedin_url || null,
+      source: 'web_scrape',
+      verified: false,
+    })
+    if (error) {
+      console.error(`Insert contact failed for ${contact.name}:`, error.message)
+    } else {
+      inserted++
+    }
+  }
+
+  return inserted
+}
+
 // ── Read Leads ──────────────────────────────────────────────────────────
 
 export async function getLeadsWithDetails() {
@@ -283,7 +337,7 @@ export async function getLeadsWithDetails() {
       latest_rentals_analysis: latestRentals,
       lead_score: propScore || null,
       contacts: propContacts,
-      current_stage: propScore ? 'scored' : latestParking ? 'analyzed' : 'scraped',
+      current_stage: propContacts.length > 0 ? 'enriched' : propScore ? 'scored' : latestParking ? 'analyzed' : 'scraped',
       outreach_count: 0,
     }
   })

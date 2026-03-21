@@ -54,7 +54,7 @@ interface ScrapedProperty {
 const store: {
   properties: Map<string, ScrapedProperty>
   lastScrapeAt: string | null
-  scrapeStatus: 'idle' | 'scraping_buildings' | 'scraping_reviews' | 'analyzing' | 'scoring' | 'complete' | 'error'
+  scrapeStatus: 'idle' | 'scraping_buildings' | 'scraping_reviews' | 'analyzing' | 'scoring' | 'enriching' | 'complete' | 'error'
   scrapeError: string | null
   scrapeProgress: string
 } = {

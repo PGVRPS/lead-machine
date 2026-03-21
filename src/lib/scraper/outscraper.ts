@@ -119,3 +119,52 @@ export async function getGoogleReviews(
 
   return places
 }
+
+// ── Google Search ──────────────────────────────────────────────────────
+
+export interface OutscraperSearchResult {
+  title: string
+  link: string
+  snippet: string
+  [key: string]: unknown
+}
+
+/**
+ * Search Google via Outscraper and return organic results.
+ * SDK signature: googleSearch(query, pagesPerQuery, uule, language, region, asyncRequest)
+ */
+export async function searchGoogle(
+  queries: string[],
+  pagesPerQuery: number = 1,
+  language: string = 'en',
+): Promise<OutscraperSearchResult[]> {
+  const client = getClient()
+
+  const results = await client.googleSearch(
+    queries,
+    pagesPerQuery,
+    null,      // uule
+    language,  // language
+    null,      // region
+    false,     // asyncRequest
+  )
+
+  const searchResults: OutscraperSearchResult[] = []
+  if (Array.isArray(results)) {
+    for (const queryResults of results) {
+      if (Array.isArray(queryResults)) {
+        for (const item of queryResults) {
+          if (item?.organic_results && Array.isArray(item.organic_results)) {
+            searchResults.push(...item.organic_results)
+          } else if (item?.title && item?.link) {
+            searchResults.push(item as OutscraperSearchResult)
+          }
+        }
+      } else if (queryResults?.organic_results && Array.isArray(queryResults.organic_results)) {
+        searchResults.push(...queryResults.organic_results)
+      }
+    }
+  }
+
+  return searchResults
+}
