@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { ArrowLeft, ExternalLink, Phone, Mail, MapPin, Star, Building, ParkingCircle, Home, Shield, Linkedin } from 'lucide-react'
 import ScoreBadge from '@/components/leads/ScoreBadge'
 import AnalysisPanel from '@/components/leads/AnalysisPanel'
+import EnrichButton from '@/components/leads/EnrichButton'
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -156,7 +157,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
         {/* Contact Info */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h3 className="font-semibold text-sm mb-4">Contact Info ({contacts.length})</h3>
+          <div className="flex items-center justify-between mb-4"><h3 className="font-semibold text-sm">Contact Info ({contacts.length})</h3><EnrichButton propertyId={lead.id} /></div>
           {contacts.length > 0 ? (
             <div className="space-y-4">
               {/* Management Company (show once from first contact) */}
