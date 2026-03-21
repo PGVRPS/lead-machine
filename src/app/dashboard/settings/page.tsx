@@ -70,35 +70,59 @@ export default function SettingsPage() {
     }
   }
 
+  // Auto-save regions and search terms immediately on add/remove
+  async function autoSaveListConfig(updatedRegions: string[], updatedTerms: string[]) {
+    try {
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ regions: updatedRegions, searchTerms: updatedTerms, scoringWeights: weights, tierThresholds: thresholds }),
+      })
+    } catch (err) {
+      console.error('Auto-save failed:', err)
+    }
+  }
+
   function handleReset() {
     setWeights({ ...DEFAULT_SCORING_WEIGHTS })
     setThresholds({ ...DEFAULT_TIER_THRESHOLDS })
-    setRegions([...GULF_COAST_REGIONS])
-    setSearchTerms([...SEARCH_TERMS])
+    const defaultRegions = [...GULF_COAST_REGIONS]
+    const defaultTerms = [...SEARCH_TERMS]
+    setRegions(defaultRegions)
+    setSearchTerms(defaultTerms)
+    autoSaveListConfig(defaultRegions, defaultTerms)
   }
 
   function addRegion() {
     const trimmed = newRegion.trim()
     if (trimmed && !regions.includes(trimmed)) {
-      setRegions([...regions, trimmed])
+      const updated = [...regions, trimmed]
+      setRegions(updated)
       setNewRegion('')
+      autoSaveListConfig(updated, searchTerms)
     }
   }
 
   function removeRegion(region: string) {
-    setRegions(regions.filter(r => r !== region))
+    const updated = regions.filter(r => r !== region)
+    setRegions(updated)
+    autoSaveListConfig(updated, searchTerms)
   }
 
   function addTerm() {
     const trimmed = newTerm.trim().toLowerCase()
     if (trimmed && !searchTerms.includes(trimmed)) {
-      setSearchTerms([...searchTerms, trimmed])
+      const updated = [...searchTerms, trimmed]
+      setSearchTerms(updated)
       setNewTerm('')
+      autoSaveListConfig(regions, updated)
     }
   }
 
   function removeTerm(term: string) {
-    setSearchTerms(searchTerms.filter(t => t !== term))
+    const updated = searchTerms.filter(t => t !== term)
+    setSearchTerms(updated)
+    autoSaveListConfig(regions, updated)
   }
 
   if (loading) {
