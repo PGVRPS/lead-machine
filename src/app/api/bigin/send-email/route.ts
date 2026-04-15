@@ -6,46 +6,79 @@ import { createOutreach, updateContactBiginId } from '@/lib/supabase/db'
 
 export async function POST(req: NextRequest) {
   try {
-    const { contactId, subject, body } = await req.json() as {
-      contactId: string
+    const { contactId, subject, body, toEmail, toName } = await req.json() as {
+      contactId: string | null
       subject: string
       body: string
+      toEmail?: string
+      toName?: string
     }
 
-    if (!contactId || !subject || !body) {
-      return NextResponse.json({ error: 'contactId, subject, and body are required' }, { status: 400 })
+    if (!subject || !body) {
+      return NextResponse.json({ error: 'subject and body are required' }, { status: 400 })
     }
 
-    // Fetch contact + property from Supabase
-    const supabase = createServerClient()
-    const { data: contact, error: contactErr } = await supabase
-      .from('contacts')
-      .select('*, properties ( id, name )')
-      .eq('id', contactId)
-      .single()
+    let biginContactId: string
+    let propertyId: string = ''
+    let resolvedContactId: string | null = contactId
 
-    if (contactErr || !contact) {
-      return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
-    }
+    if (!contactId) {
+      // Custom recipient mode — toEmail is required
+      if (!toEmail) {
+        return NextResponse.json({ error: 'toEmail is required when contactId is not provided' }, { status: 400 })
+      }
+      const payload = {
+        Last_Name: toName ? (toName.split(' ').pop() ?? toName) : 'Recipient',
+        First_Name: toName && toName.includes(' ') ? toName.split(' ').slice(0, -1).join(' ') : undefined,
+        Email: toEmail,
+      }
+      biginContactId = await upsertContact(payload)
+      resolvedContactId = null
+    } else {
+      // Contact from DB
+      const supabase = createServerClient()
+      const { data: contact, error: contactErr } = await supabase
+        .from('contacts')
+        .select('*, properties ( id, name )')
+        .eq('id', contactId)
+        .single()
 
-    const property = contact.properties as { id: string; name: string } | null
+      if (contactErr || !contact) {
+        return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
+      }
 
-    // Sync contact to Bigin (creates if not exists, reuses if already synced)
-    let biginContactId: string = contact.bigin_contact_id ?? ''
+      const property = contact.properties as { id: string; name: string } | null
+      propertyId = property?.id ?? ''
 
-    if (!biginContactId) {
-      const biginPayload = mapToBeginContact({
-        contact_name: contact.contact_name,
-        contact_title: contact.contact_title,
-        email: contact.email,
-        phone: contact.phone,
-        management_company: contact.management_company,
-        propertyName: property?.name ?? 'Unknown Property',
-        propertyId: property?.id ?? '',
-      })
-
-      biginContactId = await upsertContact(biginPayload)
-      await updateContactBiginId(contactId, biginContactId)
+      if (toEmail) {
+        // Test recipient override — create/find a temp Bigin contact with the test email
+        const testPayload = mapToBeginContact({
+          contact_name: 'Test Recipient',
+          contact_title: null,
+          email: toEmail,
+          phone: null,
+          management_company: null,
+          propertyName: property?.name ?? 'Unknown Property',
+          propertyId: propertyId,
+        })
+        biginContactId = await upsertContact(testPayload)
+      } else {
+        // Use real contact — sync to Bigin if not already done
+        biginContactId = contact.bigin_contact_id ?? ''
+        if (!biginContactId) {
+          const biginPayload = mapToBeginContact({
+            contact_name: contact.contact_name,
+            contact_title: contact.contact_title,
+            email: contact.email,
+            phone: contact.phone,
+            management_company: contact.management_company,
+            propertyName: property?.name ?? 'Unknown Property',
+            propertyId: propertyId,
+          })
+          biginContactId = await upsertContact(biginPayload)
+          await updateContactBiginId(contactId, biginContactId)
+        }
+      }
     }
 
     // Send email via Bigin
@@ -59,8 +92,8 @@ export async function POST(req: NextRequest) {
 
     // Log to Supabase outreach table
     const outreach = await createOutreach({
-      property_id: property?.id ?? '',
-      contact_id: contactId,
+      property_id: propertyId,
+      contact_id: resolvedContactId ?? '',
       subject,
       body,
       bigin_message_id: biginMessageId,

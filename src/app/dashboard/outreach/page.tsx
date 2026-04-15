@@ -23,6 +23,8 @@ type ContactOption = {
   properties: { id: string; name: string; city: string | null; state: string | null } | null
 }
 
+type ComposeMode = 'contacts' | 'custom'
+
 const STATUS_COLORS: Record<string, string> = {
   replied:  'bg-green-100 text-green-700',
   opened:   'bg-blue-100 text-blue-700',
@@ -57,7 +59,11 @@ export default function OutreachPage() {
   const [sendSuccess, setSendSuccess] = useState(false)
 
   // Compose form state
+  const [mode, setMode] = useState<ComposeMode>('contacts')
   const [selectedContactId, setSelectedContactId] = useState('')
+  const [testEmail, setTestEmail] = useState('')
+  const [customName, setCustomName] = useState('')
+  const [customEmail, setCustomEmail] = useState('')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
 
@@ -86,8 +92,20 @@ export default function OutreachPage() {
     setBody(DEFAULT_BODY(propertyName, contactName))
   }, [selectedContactId, contacts])
 
+  // Pre-fill template when custom name changes
+  useEffect(() => {
+    if (mode !== 'custom') return
+    const firstName = customName.trim().split(' ')[0] ?? ''
+    setSubject('Parking modernization for your property')
+    setBody(DEFAULT_BODY('your property', firstName))
+  }, [mode]) // only on mode switch, not on every keystroke
+
   const handleOpenCompose = () => {
+    setMode('contacts')
     setSelectedContactId('')
+    setTestEmail('')
+    setCustomName('')
+    setCustomEmail('')
     setSubject('')
     setBody('')
     setSendError(null)
@@ -95,15 +113,23 @@ export default function OutreachPage() {
     setShowCompose(true)
   }
 
+  const canSend = mode === 'contacts'
+    ? !!selectedContactId && !!subject.trim() && !!body.trim()
+    : !!customEmail.trim() && !!subject.trim() && !!body.trim()
+
   const handleSend = async () => {
-    if (!selectedContactId || !subject.trim() || !body.trim()) return
+    if (!canSend) return
     setSending(true)
     setSendError(null)
     try {
+      const payload = mode === 'contacts'
+        ? { contactId: selectedContactId, subject, body, toEmail: testEmail.trim() || undefined }
+        : { contactId: null, toEmail: customEmail.trim(), toName: customName.trim() || undefined, subject, body }
+
       const res = await fetch('/api/bigin/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactId: selectedContactId, subject, body }),
+        body: JSON.stringify(payload),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Failed to send')
@@ -185,7 +211,7 @@ export default function OutreachPage() {
               {outreach.map(o => (
                 <tr key={o.id} className="border-b border-gray-50 last:border-0">
                   <td className="px-5 py-3 font-medium">{o.properties?.name ?? '—'}</td>
-                  <td className="px-5 py-3 text-gray-600">{o.contacts?.contact_name ?? '—'}</td>
+                  <td className="px-5 py-3 text-gray-600">{o.contacts?.contact_name ?? o.contacts?.email ?? '—'}</td>
                   <td className="px-5 py-3 text-gray-600 max-w-xs truncate">{o.subject ?? '—'}</td>
                   <td className="px-5 py-3">
                     <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${STATUS_COLORS[o.status] ?? 'bg-gray-50 text-gray-400'}`}>
@@ -216,25 +242,86 @@ export default function OutreachPage() {
 
             {/* Body */}
             <div className="p-5 space-y-4 flex-1 overflow-y-auto">
-              {/* Contact picker */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
-                <div className="relative">
-                  <select
-                    value={selectedContactId}
-                    onChange={e => setSelectedContactId(e.target.value)}
-                    className="w-full appearance-none border border-gray-200 rounded-lg px-3 py-2 text-sm pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select a contact...</option>
-                    {contacts.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.contact_name ?? c.email} — {c.properties?.name ?? 'Unknown property'} ({c.email})
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-4 h-4 text-gray-400 absolute right-2.5 top-2.5 pointer-events-none" />
-                </div>
+
+              {/* Mode toggle */}
+              <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm font-medium">
+                <button
+                  onClick={() => setMode('contacts')}
+                  className={`flex-1 py-2 transition-colors ${mode === 'contacts' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                  From Contacts
+                </button>
+                <button
+                  onClick={() => setMode('custom')}
+                  className={`flex-1 py-2 transition-colors ${mode === 'custom' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                >
+                  Custom Recipient
+                </button>
               </div>
+
+              {mode === 'contacts' ? (
+                <>
+                  {/* Contact picker */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
+                    <div className="relative">
+                      <select
+                        value={selectedContactId}
+                        onChange={e => setSelectedContactId(e.target.value)}
+                        className="w-full appearance-none border border-gray-200 rounded-lg px-3 py-2 text-sm pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select a contact...</option>
+                        {contacts.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.contact_name ?? c.email} — {c.properties?.name ?? 'Unknown property'} ({c.email})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-gray-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* Test recipient override */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">
+                      Test recipient <span className="text-gray-400 font-normal">(optional — overrides contact email for testing)</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={testEmail}
+                      onChange={e => setTestEmail(e.target.value)}
+                      className="w-full border border-amber-200 bg-amber-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      placeholder="your@email.com"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Custom name */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Name <span className="text-gray-400 font-normal">(optional)</span></label>
+                    <input
+                      type="text"
+                      value={customName}
+                      onChange={e => setCustomName(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="John Smith"
+                    />
+                  </div>
+
+                  {/* Custom email */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={customEmail}
+                      onChange={e => setCustomEmail(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="contact@property.com"
+                    />
+                  </div>
+                </>
+              )}
 
               {/* Subject */}
               <div>
@@ -278,7 +365,7 @@ export default function OutreachPage() {
               </button>
               <button
                 onClick={handleSend}
-                disabled={sending || !selectedContactId || !subject.trim() || !body.trim()}
+                disabled={sending || !canSend}
                 className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Send className="w-4 h-4" />
