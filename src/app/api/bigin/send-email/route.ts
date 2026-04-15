@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
     }
 
     let biginContactId: string
+    let recipientEmail: string
     let propertyId: string = ''
     let resolvedContactId: string | null = contactId
 
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
       if (!toEmail) {
         return NextResponse.json({ error: 'toEmail is required when contactId is not provided' }, { status: 400 })
       }
+      recipientEmail = toEmail
       const payload = {
         Last_Name: toName ? (toName.split(' ').pop() ?? toName) : 'Recipient',
         First_Name: toName && toName.includes(' ') ? toName.split(' ').slice(0, -1).join(' ') : undefined,
@@ -49,41 +51,29 @@ export async function POST(req: NextRequest) {
 
       const property = contact.properties as { id: string; name: string } | null
       propertyId = property?.id ?? ''
+      recipientEmail = contact.email ?? ''
 
-      if (toEmail) {
-        // Test recipient override — create/find a temp Bigin contact with the test email
-        const testPayload = mapToBeginContact({
-          contact_name: 'Test Recipient',
-          contact_title: null,
-          email: toEmail,
-          phone: null,
-          management_company: null,
+      // Use real contact — sync to Bigin if not already done
+      biginContactId = contact.bigin_contact_id ?? ''
+      if (!biginContactId) {
+        const biginPayload = mapToBeginContact({
+          contact_name: contact.contact_name,
+          contact_title: contact.contact_title,
+          email: contact.email,
+          phone: contact.phone,
+          management_company: contact.management_company,
           propertyName: property?.name ?? 'Unknown Property',
           propertyId: propertyId,
         })
-        biginContactId = await upsertContact(testPayload)
-      } else {
-        // Use real contact — sync to Bigin if not already done
-        biginContactId = contact.bigin_contact_id ?? ''
-        if (!biginContactId) {
-          const biginPayload = mapToBeginContact({
-            contact_name: contact.contact_name,
-            contact_title: contact.contact_title,
-            email: contact.email,
-            phone: contact.phone,
-            management_company: contact.management_company,
-            propertyName: property?.name ?? 'Unknown Property',
-            propertyId: propertyId,
-          })
-          biginContactId = await upsertContact(biginPayload)
-          await updateContactBiginId(contactId, biginContactId)
-        }
+        biginContactId = await upsertContact(biginPayload)
+        await updateContactBiginId(contactId, biginContactId)
       }
     }
 
     // Send email via Bigin
     const biginMessageId = await sendEmailToContact({
       contactId: biginContactId,
+      toEmail: recipientEmail,
       fromName: 'Sean',
       fromEmail: 'sean@vrps.com',
       subject,

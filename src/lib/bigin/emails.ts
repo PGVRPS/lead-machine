@@ -8,6 +8,8 @@ import { biginRequest } from './client'
 export type SendEmailParams = {
   /** Bigin Contact record id to send to */
   contactId: string
+  /** Recipient email address — required by Bigin's send_mail API */
+  toEmail: string
   /** Sender name shown in the From field */
   fromName: string
   /** Reply-to / from email address configured in Bigin */
@@ -36,7 +38,7 @@ export async function sendEmailToContact(params: SendEmailParams): Promise<strin
           user_name: params.fromName,
           email: params.fromEmail,
         },
-        to: [{ user_type: 'lead', object_id: params.contactId }],
+        to: [{ user_type: 'lead', object_id: params.contactId, email: params.toEmail }],
         subject: params.subject,
         content: params.body,
         mail_format: 'html',
