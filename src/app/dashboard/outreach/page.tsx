@@ -47,7 +47,7 @@ Properties typically implement VRPS when they start seeing:
 I'd be happy to take a quick look at how parking is handled at ${propertyName} and share a few ideas that have worked well for other properties nearby.
 
 Best,
-Sean`
+`
 
 export default function OutreachPage() {
   const [outreach, setOutreach] = useState<OutreachRecord[]>([])
