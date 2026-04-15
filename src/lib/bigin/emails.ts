@@ -10,9 +10,7 @@ export type SendEmailParams = {
   contactId: string
   /** Recipient email address — required by Bigin's send_mail API */
   toEmail: string
-  /** Sender name shown in the From field */
-  fromName: string
-  /** Reply-to / from email address configured in Bigin */
+  /** Verified from address configured in Bigin org email settings */
   fromEmail: string
   subject: string
   /** HTML or plain-text body */
@@ -34,10 +32,7 @@ export async function sendEmailToContact(params: SendEmailParams): Promise<strin
   const payload = {
     data: [
       {
-        from: {
-          user_name: params.fromName,
-          email: params.fromEmail,
-        },
+        from: { email: params.fromEmail },
         to: [{ user_type: 'lead', object_id: params.contactId, email: params.toEmail }],
         subject: params.subject,
         content: params.body,

@@ -74,7 +74,6 @@ export async function POST(req: NextRequest) {
     const biginMessageId = await sendEmailToContact({
       contactId: biginContactId,
       toEmail: recipientEmail,
-      fromName: process.env.ZOHO_BIGIN_FROM_NAME ?? 'Sean',
       fromEmail: process.env.ZOHO_BIGIN_FROM_EMAIL ?? 'sales@vrpsinc.com',
       subject,
       body,
