@@ -61,7 +61,6 @@ export default function OutreachPage() {
   // Compose form state
   const [mode, setMode] = useState<ComposeMode>('contacts')
   const [selectedContactId, setSelectedContactId] = useState('')
-  const [testEmail, setTestEmail] = useState('')
   const [customName, setCustomName] = useState('')
   const [customEmail, setCustomEmail] = useState('')
   const [subject, setSubject] = useState('')
@@ -103,7 +102,7 @@ export default function OutreachPage() {
   const handleOpenCompose = () => {
     setMode('contacts')
     setSelectedContactId('')
-    setTestEmail('')
+
     setCustomName('')
     setCustomEmail('')
     setSubject('')
@@ -123,7 +122,7 @@ export default function OutreachPage() {
     setSendError(null)
     try {
       const payload = mode === 'contacts'
-        ? { contactId: selectedContactId, subject, body, toEmail: testEmail.trim() || undefined }
+        ? { contactId: selectedContactId, subject, body }
         : { contactId: null, toEmail: customEmail.trim(), toName: customName.trim() || undefined, subject, body }
 
       const res = await fetch('/api/bigin/send-email', {
@@ -281,19 +280,6 @@ export default function OutreachPage() {
                     </div>
                   </div>
 
-                  {/* Test recipient override */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">
-                      Test recipient <span className="text-gray-400 font-normal">(optional — overrides contact email for testing)</span>
-                    </label>
-                    <input
-                      type="email"
-                      value={testEmail}
-                      onChange={e => setTestEmail(e.target.value)}
-                      className="w-full border border-amber-200 bg-amber-50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-                      placeholder="your@email.com"
-                    />
-                  </div>
                 </>
               ) : (
                 <>
