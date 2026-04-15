@@ -12,6 +12,8 @@ export type SendEmailParams = {
   toEmail: string
   /** Verified from address configured in Bigin org email settings */
   fromEmail: string
+  /** Display name for the from address */
+  fromName: string
   subject: string
   /** HTML or plain-text body */
   body: string
@@ -32,11 +34,12 @@ export async function sendEmailToContact(params: SendEmailParams): Promise<strin
   const payload = {
     data: [
       {
-        from: { email: params.fromEmail },
-        to: [{ user_type: 'lead', object_id: params.contactId, email: params.toEmail }],
+        from: { user_name: params.fromName, email: params.fromEmail },
+        to: [{ user_name: '', email: params.toEmail }],
         subject: params.subject,
         content: params.body,
         mail_format: 'html',
+        org_email: true,
       },
     ],
   }
