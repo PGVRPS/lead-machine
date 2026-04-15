@@ -343,6 +343,81 @@ export async function getLeadsWithDetails() {
   })
 }
 
+// ── Outreach ────────────────────────────────────────────────────────────
+
+export async function getOutreachWithDetails() {
+  const supabase = createServerClient()
+
+  const { data, error } = await supabase
+    .from('outreach')
+    .select(`
+      *,
+      properties ( name ),
+      contacts ( contact_name, email )
+    `)
+    .order('created_at', { ascending: false })
+
+  if (error) throw new Error(`Fetch outreach failed: ${error.message}`)
+  return data || []
+}
+
+export async function createOutreach(params: {
+  property_id: string
+  contact_id: string
+  subject: string
+  body: string
+  template?: string
+  bigin_message_id?: string
+}) {
+  const supabase = createServerClient()
+
+  const { data, error } = await supabase
+    .from('outreach')
+    .insert({
+      property_id: params.property_id,
+      contact_id: params.contact_id,
+      subject: params.subject,
+      body: params.body,
+      template: params.template ?? 'initial_outreach',
+      bigin_message_id: params.bigin_message_id ?? null,
+      status: params.bigin_message_id ? 'sent' : 'draft',
+      sent_at: params.bigin_message_id ? new Date().toISOString() : null,
+    })
+    .select('id')
+    .single()
+
+  if (error) throw new Error(`Create outreach failed: ${error.message}`)
+  return data
+}
+
+export async function updateContactBiginId(contactId: string, biginContactId: string) {
+  const supabase = createServerClient()
+  const { error } = await supabase
+    .from('contacts')
+    .update({ bigin_contact_id: biginContactId })
+    .eq('id', contactId)
+  if (error) throw new Error(`Update contact bigin id failed: ${error.message}`)
+}
+
+export async function getContactsWithEmail() {
+  const supabase = createServerClient()
+
+  const { data, error } = await supabase
+    .from('contacts')
+    .select(`
+      id, contact_name, contact_title, email, phone,
+      management_company, bigin_contact_id,
+      properties ( id, name, city, state )
+    `)
+    .not('email', 'is', null)
+    .order('created_at', { ascending: false })
+
+  if (error) throw new Error(`Fetch contacts with email failed: ${error.message}`)
+  return data || []
+}
+
+// ── Single property detail ───────────────────────────────────────────────
+
 export async function getPropertyWithDetails(propertyId: string) {
   const supabase = createServerClient()
 
