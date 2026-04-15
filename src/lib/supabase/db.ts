@@ -362,8 +362,8 @@ export async function getOutreachWithDetails() {
 }
 
 export async function createOutreach(params: {
-  property_id: string
-  contact_id: string
+  property_id: string | null
+  contact_id: string | null
   subject: string
   body: string
   template?: string

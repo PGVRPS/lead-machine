@@ -82,8 +82,8 @@ export async function POST(req: NextRequest) {
 
     // Log to Supabase outreach table
     const outreach = await createOutreach({
-      property_id: propertyId,
-      contact_id: resolvedContactId ?? '',
+      property_id: propertyId || null,
+      contact_id: resolvedContactId || null,
       subject,
       body,
       bigin_message_id: biginMessageId,
