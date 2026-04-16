@@ -45,7 +45,7 @@ export async function sendEmailToContact(params: SendEmailParams): Promise<strin
   }
 
   const res = await biginRequest<{
-    data: { code: string; details: { id: string }; message: string }[]
+    data: { code: string; details: { message_id: string }; message: string }[]
   }>(`/Contacts/${params.contactId}/actions/send_mail`, {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -56,7 +56,7 @@ export async function sendEmailToContact(params: SendEmailParams): Promise<strin
     throw new Error(`Bigin send mail failed: ${record.message}`)
   }
 
-  return record.details.id
+  return record.details.message_id
 }
 
 /**
