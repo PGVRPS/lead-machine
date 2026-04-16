@@ -351,7 +351,8 @@ export async function getOutreachWithDetails() {
   const { data, error } = await supabase
     .from('outreach')
     .select(`
-      *,
+      id, subject, status, sent_at, opened_at, clicked_at,
+      recipient_email, recipient_name,
       properties ( name ),
       contacts ( contact_name, email )
     `)
@@ -368,6 +369,8 @@ export async function createOutreach(params: {
   body: string
   template?: string
   bigin_message_id?: string
+  recipient_email?: string
+  recipient_name?: string
 }) {
   const supabase = createServerClient()
 
@@ -382,6 +385,8 @@ export async function createOutreach(params: {
       bigin_message_id: params.bigin_message_id ?? null,
       status: params.bigin_message_id ? 'sent' : 'draft',
       sent_at: params.bigin_message_id ? new Date().toISOString() : null,
+      recipient_email: params.recipient_email ?? null,
+      recipient_name: params.recipient_name ?? null,
     })
     .select('id')
     .single()

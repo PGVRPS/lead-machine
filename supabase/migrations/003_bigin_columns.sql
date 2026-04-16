@@ -10,3 +10,7 @@ ALTER TABLE outreach ADD COLUMN IF NOT EXISTS bigin_message_id TEXT;
 -- (Zoho rate limits the token refresh endpoint)
 ALTER TABLE scrape_config ADD COLUMN IF NOT EXISTS bigin_access_token TEXT;
 ALTER TABLE scrape_config ADD COLUMN IF NOT EXISTS bigin_token_expires_at BIGINT;
+
+-- Store recipient info for custom sends (no linked contact/property)
+ALTER TABLE outreach ADD COLUMN IF NOT EXISTS recipient_email TEXT;
+ALTER TABLE outreach ADD COLUMN IF NOT EXISTS recipient_name TEXT;

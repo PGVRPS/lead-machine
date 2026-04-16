@@ -87,6 +87,8 @@ export async function POST(req: NextRequest) {
       subject,
       body,
       bigin_message_id: biginMessageId,
+      recipient_email: recipientEmail || undefined,
+      recipient_name: toName || undefined,
     })
 
     return NextResponse.json({ success: true, outreachId: outreach.id, biginMessageId })

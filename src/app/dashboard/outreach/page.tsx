@@ -10,6 +10,8 @@ type OutreachRecord = {
   sent_at: string | null
   opened_at: string | null
   clicked_at: string | null
+  recipient_email: string | null
+  recipient_name: string | null
   properties: { name: string } | null
   contacts: { contact_name: string | null; email: string | null } | null
 }
@@ -210,7 +212,9 @@ export default function OutreachPage() {
               {outreach.map(o => (
                 <tr key={o.id} className="border-b border-gray-50 last:border-0">
                   <td className="px-5 py-3 font-medium">{o.properties?.name ?? '—'}</td>
-                  <td className="px-5 py-3 text-gray-600">{o.contacts?.contact_name ?? o.contacts?.email ?? '—'}</td>
+                  <td className="px-5 py-3 text-gray-600">
+                    {o.contacts?.contact_name ?? o.contacts?.email ?? o.recipient_name ?? o.recipient_email ?? '—'}
+                  </td>
                   <td className="px-5 py-3 text-gray-600 max-w-xs truncate">{o.subject ?? '—'}</td>
                   <td className="px-5 py-3">
                     <span className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${STATUS_COLORS[o.status] ?? 'bg-gray-50 text-gray-400'}`}>
