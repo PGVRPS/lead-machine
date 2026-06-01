@@ -50,21 +50,15 @@ interface ScrapedProperty {
   }
 }
 
-// Global in-memory store
+// Global in-memory store for the scraped-property cache.
+// NOTE: pipeline status used to live here too, but moved to Supabase
+// (table: pipeline_runs) so it survives Vercel lambda swaps and reloads.
 const store: {
   properties: Map<string, ScrapedProperty>
   lastScrapeAt: string | null
-  scrapeStatus: 'idle' | 'scraping_buildings' | 'scraping_reviews' | 'analyzing' | 'scoring' | 'enriching' | 'complete' | 'error'
-  scrapeError: string | null
-  scrapeProgress: string
-  scrapeSummary: Record<string, number> | null
 } = {
   properties: new Map(),
   lastScrapeAt: null,
-  scrapeStatus: 'idle',
-  scrapeError: null,
-  scrapeProgress: '',
-  scrapeSummary: null,
 }
 
 // Ensure singleton across hot reloads in dev
@@ -110,30 +104,6 @@ export function updatePropertyScore(placeId: string, score: ScrapedProperty['sco
   if (prop) {
     prop.score = score
     getStore().properties.set(placeId, prop)
-  }
-}
-
-export function setStatus(status: typeof store.scrapeStatus, progress?: string, error?: string) {
-  const s = getStore()
-  s.scrapeStatus = status
-  if (progress !== undefined) s.scrapeProgress = progress
-  if (error !== undefined) s.scrapeError = error
-  if (status === 'complete') s.lastScrapeAt = new Date().toISOString()
-}
-
-export function setSummary(summary: Record<string, number> | null) {
-  getStore().scrapeSummary = summary
-}
-
-export function getStatus() {
-  const s = getStore()
-  return {
-    status: s.scrapeStatus,
-    progress: s.scrapeProgress,
-    error: s.scrapeError,
-    lastScrapeAt: s.lastScrapeAt,
-    propertyCount: s.properties.size,
-    summary: s.scrapeSummary,
   }
 }
 

@@ -6,53 +6,53 @@ import { detectVacationRentals } from '@/lib/ai/prompts/rental-detection'
 import { calculateLeadScore } from '@/lib/scoring/calculator'
 import { upsertProperty, insertReviews, insertAnalysis, upsertLeadScore, addPipelineStage } from '@/lib/supabase/db'
 import { enrichPropertyContacts } from '@/lib/enrichment/enrich-contacts'
-import { setStatus, setSummary, getStatus } from '@/lib/store'
+import {
+  createPipelineRun,
+  updatePipelineRun,
+  getLatestPipelineRun,
+  getRunningPipelineRun,
+} from '@/lib/supabase/pipeline-runs'
 
 export const maxDuration = 300
 
-export async function POST(request: NextRequest) {
-  const body = await request.json().catch(() => ({}))
-  const {
-    regions = ['Orange Beach, AL'],
-    searchTerms = ['condominium complex', 'condo resort', 'beach condo'],
-    buildingLimit = 10,
-    reviewsLimit = 100,
-    analyzeTop = 5,
-  } = body as {
-    regions?: string[]
-    searchTerms?: string[]
-    buildingLimit?: number
-    reviewsLimit?: number
-    analyzeTop?: number
-  }
+interface PipelineParams {
+  regions: string[]
+  searchTerms: string[]
+  buildingLimit: number
+  reviewsLimit: number
+  analyzeTop: number
+}
 
-  // Guard against starting a second pipeline while one is in progress.
-  // The in-memory store is per-lambda, so this is best-effort — but it prevents
-  // double-clicks from racing within the same warm instance.
-  const current = getStatus()
-  const runningStates = ['scraping_buildings', 'scraping_reviews', 'analyzing', 'scoring', 'enriching']
-  if (runningStates.includes(current.status)) {
-    return Response.json(
-      { error: 'Pipeline already running', status: current.status, progress: current.progress },
-      { status: 409 },
-    )
-  }
-
-  setSummary(null)
-
+async function runPipeline(runId: string, params: PipelineParams) {
+  const { regions, searchTerms, buildingLimit, reviewsLimit, analyzeTop } = params
   try {
     // ── Step 1: Scrape Buildings ──
-    setStatus('scraping_buildings', `Searching ${regions.length} regions with ${searchTerms.length} terms...`)
+    await updatePipelineRun(runId, {
+      status: 'scraping_buildings',
+      progress: `Searching ${regions.length} regions with ${searchTerms.length} terms...`,
+    })
 
     const queries = regions.flatMap(region =>
-      searchTerms.map(term => `${term}, ${region}`)
+      searchTerms.map(term => `${term}, ${region}`),
     )
 
-    const places = await searchGoogleMaps(queries, buildingLimit)
+    const rawPlaces = await searchGoogleMaps(queries, buildingLimit)
+
+    // Filter to actual condo buildings / apartment complexes. Outscraper returns
+    // a mix of types for these searches (Vacation home rental agency, Hotel,
+    // individual VRBO listings, etc.) — VRPS targets residential buildings, so
+    // anything outside this allow-list is dropped before it hits the DB.
+    const places = rawPlaces.filter(p => {
+      const haystack = [p.type, p.category, (p as { subtypes?: string }).subtypes]
+        .filter(Boolean)
+        .join(' | ')
+      return /Condominium\s+complex|Apartment\s+building|Apartment\s+complex|\bCondominium\b/i.test(haystack)
+    })
 
     // Deduplicate and save to Supabase
     const uniquePlaces = new Map<string, typeof places[0]>()
     const dbProperties: Array<{ id: string; outscraper_id: string; place: typeof places[0] }> = []
+    const filteredOut = rawPlaces.length - places.length
 
     for (const place of places) {
       if (place.name && place.place_id && !uniquePlaces.has(place.place_id)) {
@@ -80,7 +80,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    setStatus('scraping_reviews', `Found ${dbProperties.length} properties. Fetching reviews...`)
+    await updatePipelineRun(runId, {
+      status: 'scraping_reviews',
+      progress: `Found ${dbProperties.length} condo properties (filtered out ${filteredOut} non-condos). Fetching reviews...`,
+    })
 
     // ── Step 2: Scrape Reviews (top N by review count) ──
     const sortedByReviews = dbProperties
@@ -91,7 +94,10 @@ export async function POST(request: NextRequest) {
 
     for (let i = 0; i < sortedByReviews.length; i += 2) {
       const batch = sortedByReviews.slice(i, i + 2)
-      setStatus('scraping_reviews', `Fetching reviews ${i + 1}-${Math.min(i + 2, sortedByReviews.length)} of ${sortedByReviews.length}...`)
+      await updatePipelineRun(runId, {
+        status: 'scraping_reviews',
+        progress: `Fetching reviews ${i + 1}-${Math.min(i + 2, sortedByReviews.length)} of ${sortedByReviews.length}...`,
+      })
 
       const placeIds = batch.map(b => b.outscraper_id)
       const reviewResults = await getGoogleReviews(placeIds, reviewsLimit)
@@ -111,7 +117,10 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Step 3: AI Analysis ──
-    setStatus('analyzing', `Running AI analysis on ${reviewData.size} properties...`)
+    await updatePipelineRun(runId, {
+      status: 'analyzing',
+      progress: `Running AI analysis on ${reviewData.size} properties...`,
+    })
 
     let analyzedCount = 0
     let immediateCount = 0
@@ -122,7 +131,10 @@ export async function POST(request: NextRequest) {
       const [dbId, data] = entries[i]
       if (data.reviews.length === 0) continue
 
-      setStatus('analyzing', `Analyzing ${data.name} (${i + 1}/${entries.length})...`)
+      await updatePipelineRun(runId, {
+        status: 'analyzing',
+        progress: `Analyzing ${data.name} (${i + 1}/${entries.length})...`,
+      })
       const reviewTexts = data.reviews.map(r => r.text)
 
       try {
@@ -165,12 +177,18 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Step 4: Contact Enrichment ──
-    setStatus('enriching', `Enriching contacts for ${entries.length} properties...`)
+    await updatePipelineRun(runId, {
+      status: 'enriching',
+      progress: `Enriching contacts for ${entries.length} properties...`,
+    })
 
     let enrichedCount = 0
     for (let i = 0; i < entries.length; i++) {
       const [dbId, data] = entries[i]
-      setStatus('enriching', `Finding contacts for ${data.name} (${i + 1}/${entries.length})...`)
+      await updatePipelineRun(runId, {
+        status: 'enriching',
+        progress: `Finding contacts for ${data.name} (${i + 1}/${entries.length})...`,
+      })
 
       try {
         const enrichResult = await enrichPropertyContacts(
@@ -195,19 +213,72 @@ export async function POST(request: NextRequest) {
       immediate: immediateCount,
       nurture: nurtureCount,
       enriched: enrichedCount,
+      filtered_out: filteredOut,
     }
-    setSummary(summary)
-    setStatus('complete', `Pipeline complete! ${dbProperties.length} properties scraped, ${analyzedCount} analyzed, ${enrichedCount} enriched.`)
-
-    return Response.json({ success: true, summary })
+    await updatePipelineRun(runId, {
+      status: 'complete',
+      progress: `Pipeline complete! ${dbProperties.length} properties scraped, ${analyzedCount} analyzed, ${enrichedCount} enriched.`,
+      summary,
+    })
   } catch (error) {
     console.error('Pipeline failed:', error)
-    setStatus('error', '', (error as Error).message)
-    return Response.json({ error: 'Pipeline failed', details: (error as Error).message }, { status: 500 })
+    await updatePipelineRun(runId, {
+      status: 'error',
+      progress: '',
+      error: (error as Error).message,
+    }).catch(e => console.error('Failed to record pipeline error:', e))
   }
 }
 
+export async function POST(request: NextRequest) {
+  const body = await request.json().catch(() => ({}))
+  const params: PipelineParams = {
+    regions: body.regions ?? ['Orange Beach, AL'],
+    searchTerms: body.searchTerms ?? ['condominium complex', 'condo resort', 'beach condo'],
+    buildingLimit: body.buildingLimit ?? 10,
+    reviewsLimit: body.reviewsLimit ?? 100,
+    analyzeTop: body.analyzeTop ?? 5,
+  }
+
+  // Guard against starting a second pipeline while one is already running.
+  // Now backed by Supabase, so this works across lambdas.
+  const running = await getRunningPipelineRun()
+  if (running) {
+    return Response.json(
+      { error: 'Pipeline already running', status: running.status, progress: running.progress, runId: running.id },
+      { status: 409 },
+    )
+  }
+
+  let run
+  try {
+    run = await createPipelineRun(params as unknown as Record<string, unknown>)
+  } catch (err) {
+    return Response.json(
+      { error: 'Failed to create pipeline run', details: (err as Error).message },
+      { status: 500 },
+    )
+  }
+
+  // Kick off the pipeline. We intentionally don't await it — the long-running
+  // work continues on the lambda after the response, and the client polls
+  // GET /api/scrape/pipeline for progress and completion.
+  runPipeline(run.id, params)
+
+  return Response.json({ started: true, runId: run.id }, { status: 202 })
+}
+
 export async function GET() {
-  const { status, progress, error, lastScrapeAt, summary } = getStatus()
-  return Response.json({ status, progress, error, lastScrapeAt, summary })
+  const run = await getLatestPipelineRun()
+  if (!run) {
+    return Response.json({ status: 'idle', progress: '', error: null, lastScrapeAt: null, summary: null })
+  }
+  return Response.json({
+    status: run.status,
+    progress: run.progress,
+    error: run.error,
+    lastScrapeAt: run.completed_at,
+    summary: run.summary,
+    runId: run.id,
+  })
 }
