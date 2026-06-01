@@ -45,18 +45,40 @@ export default function ScrapePage() {
     loadConfig()
   }, [])
 
-  // Poll for status while running
+  // On mount, sync with server in case a pipeline is already running
+  // (e.g. user reloaded the page mid-run, or another tab kicked one off).
+  useEffect(() => {
+    fetch('/api/scrape/pipeline')
+      .then(r => r.json())
+      .then(data => {
+        if (!data?.status || data.status === 'idle') return
+        setStatus(data.status as PipelineStatus)
+        if (data.progress) setProgress(data.progress)
+        if (data.error) setError(data.error)
+        if (data.summary) setSummary(data.summary)
+      })
+      .catch(() => {})
+  }, [])
+
+  // Poll for status while running. This is the single source of truth for
+  // pipeline state — the POST that kicks off the run is fire-and-forget,
+  // so a dropped client connection won't poison the UI.
   useEffect(() => {
     if (status === 'idle' || status === 'complete' || status === 'error') return
 
     const interval = setInterval(async () => {
-      const res = await fetch('/api/scrape/pipeline')
-      const data = await res.json()
-      setProgress(data.progress)
-      if (data.status === 'complete' || data.status === 'error') {
-        setStatus(data.status)
-        if (data.error) setError(data.error)
-        fetchLeads()
+      try {
+        const res = await fetch('/api/scrape/pipeline')
+        const data = await res.json()
+        if (data.progress) setProgress(data.progress)
+        if (data.status === 'complete' || data.status === 'error') {
+          setStatus(data.status)
+          if (data.error) setError(data.error)
+          if (data.summary) setSummary(data.summary)
+          fetchLeads()
+        }
+      } catch {
+        // Transient poll failure — keep trying on the next tick.
       }
     }, 2000)
 
@@ -75,33 +97,44 @@ export default function ScrapePage() {
     setError(null)
     setSummary(null)
 
-    try {
-      const res = await fetch('/api/scrape/pipeline', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          regions: selectedRegions,
-          searchTerms: selectedTerms,
-          reviewsLimit,
-          analyzeTop,
-        }),
+    // Fire the kickoff but don't tie UI state to its lifetime. The pipeline
+    // can take several minutes; any network blip on the client (sleep/wake,
+    // Wi-Fi reconnect, hot-reload) would otherwise reject this fetch and
+    // surface "Pipeline Failed" even though the server is still working.
+    // The polling effect above is the single source of truth for status.
+    fetch('/api/scrape/pipeline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        regions: selectedRegions,
+        searchTerms: selectedTerms,
+        reviewsLimit,
+        analyzeTop,
+      }),
+    })
+      .then(async res => {
+        if (res.status === 409) {
+          // Another pipeline is already running — polling will reflect it.
+          return
+        }
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          setStatus('error')
+          setError(data.error || data.details || `Pipeline kickoff failed (HTTP ${res.status})`)
+          return
+        }
+        const data = await res.json().catch(() => null)
+        if (data?.summary) {
+          setStatus('complete')
+          setSummary(data.summary)
+          fetchLeads()
+        }
       })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setStatus('error')
-        setError(data.error || 'Pipeline failed')
-        return
-      }
-
-      setStatus('complete')
-      setSummary(data.summary)
-      fetchLeads()
-    } catch (err) {
-      setStatus('error')
-      setError((err as Error).message)
-    }
+      .catch(() => {
+        // Network drop on the long-lived POST. Don't flip to error here —
+        // the server may still be running. Polling will deliver the final
+        // state (complete or error) once the pipeline finishes.
+      })
   }
 
   function toggleRegion(region: string) {

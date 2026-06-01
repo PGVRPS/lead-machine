@@ -57,12 +57,14 @@ const store: {
   scrapeStatus: 'idle' | 'scraping_buildings' | 'scraping_reviews' | 'analyzing' | 'scoring' | 'enriching' | 'complete' | 'error'
   scrapeError: string | null
   scrapeProgress: string
+  scrapeSummary: Record<string, number> | null
 } = {
   properties: new Map(),
   lastScrapeAt: null,
   scrapeStatus: 'idle',
   scrapeError: null,
   scrapeProgress: '',
+  scrapeSummary: null,
 }
 
 // Ensure singleton across hot reloads in dev
@@ -119,6 +121,10 @@ export function setStatus(status: typeof store.scrapeStatus, progress?: string, 
   if (status === 'complete') s.lastScrapeAt = new Date().toISOString()
 }
 
+export function setSummary(summary: Record<string, number> | null) {
+  getStore().scrapeSummary = summary
+}
+
 export function getStatus() {
   const s = getStore()
   return {
@@ -127,6 +133,7 @@ export function getStatus() {
     error: s.scrapeError,
     lastScrapeAt: s.lastScrapeAt,
     propertyCount: s.properties.size,
+    summary: s.scrapeSummary,
   }
 }
 

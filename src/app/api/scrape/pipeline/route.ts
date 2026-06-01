@@ -6,7 +6,7 @@ import { detectVacationRentals } from '@/lib/ai/prompts/rental-detection'
 import { calculateLeadScore } from '@/lib/scoring/calculator'
 import { upsertProperty, insertReviews, insertAnalysis, upsertLeadScore, addPipelineStage } from '@/lib/supabase/db'
 import { enrichPropertyContacts } from '@/lib/enrichment/enrich-contacts'
-import { setStatus } from '@/lib/store'
+import { setStatus, setSummary, getStatus } from '@/lib/store'
 
 export const maxDuration = 300
 
@@ -25,6 +25,20 @@ export async function POST(request: NextRequest) {
     reviewsLimit?: number
     analyzeTop?: number
   }
+
+  // Guard against starting a second pipeline while one is in progress.
+  // The in-memory store is per-lambda, so this is best-effort — but it prevents
+  // double-clicks from racing within the same warm instance.
+  const current = getStatus()
+  const runningStates = ['scraping_buildings', 'scraping_reviews', 'analyzing', 'scoring', 'enriching']
+  if (runningStates.includes(current.status)) {
+    return Response.json(
+      { error: 'Pipeline already running', status: current.status, progress: current.progress },
+      { status: 409 },
+    )
+  }
+
+  setSummary(null)
 
   try {
     // ── Step 1: Scrape Buildings ──
@@ -174,19 +188,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const summary = {
+      total_properties: dbProperties.length,
+      reviews_fetched: reviewData.size,
+      analyzed: analyzedCount,
+      immediate: immediateCount,
+      nurture: nurtureCount,
+      enriched: enrichedCount,
+    }
+    setSummary(summary)
     setStatus('complete', `Pipeline complete! ${dbProperties.length} properties scraped, ${analyzedCount} analyzed, ${enrichedCount} enriched.`)
 
-    return Response.json({
-      success: true,
-      summary: {
-        total_properties: dbProperties.length,
-        reviews_fetched: reviewData.size,
-        analyzed: analyzedCount,
-        immediate: immediateCount,
-        nurture: nurtureCount,
-        enriched: enrichedCount,
-      },
-    })
+    return Response.json({ success: true, summary })
   } catch (error) {
     console.error('Pipeline failed:', error)
     setStatus('error', '', (error as Error).message)
@@ -195,6 +208,6 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  const { status, progress, error, lastScrapeAt } = await import('@/lib/store').then(m => m.getStatus())
-  return Response.json({ status, progress, error, lastScrapeAt })
+  const { status, progress, error, lastScrapeAt, summary } = getStatus()
+  return Response.json({ status, progress, error, lastScrapeAt, summary })
 }
