@@ -1,6 +1,8 @@
 import { getLeadsWithDetails } from '@/lib/supabase/db'
-import { Calendar, Download, Flame, Radar } from 'lucide-react'
+import { Flame, Radar } from 'lucide-react'
 import ScoreBadge from '@/components/leads/ScoreBadge'
+import ExportLeadsButton from '@/components/leads/ExportLeadsButton'
+import type { LeadWithDetails } from '@/types/database'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
@@ -38,6 +40,20 @@ export default async function ReportsPage() {
         <div>
           <h1 className="text-2xl font-bold">Lead Report</h1>
           <p className="text-gray-500 text-sm mt-1">{leads.length} properties in database</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {hotLeads.length > 0 && (
+            <ExportLeadsButton
+              leads={hotLeads as unknown as LeadWithDetails[]}
+              filename={`hot-leads-${new Date().toISOString().slice(0, 10)}.csv`}
+              label="Export Hot"
+            />
+          )}
+          <ExportLeadsButton
+            leads={leads as unknown as LeadWithDetails[]}
+            filename={`lead-report-${new Date().toISOString().slice(0, 10)}.csv`}
+            label="Export All"
+          />
         </div>
       </div>
 

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ChevronUp, ChevronDown, Search, Filter } from 'lucide-react'
 import type { LeadWithDetails } from '@/types/database'
 import ScoreBadge from './ScoreBadge'
+import ExportLeadsButton from './ExportLeadsButton'
 
 type SortKey = 'name' | 'city' | 'score' | 'units' | 'review_count'
 type SortDir = 'asc' | 'desc'
@@ -115,6 +116,7 @@ export default function LeadTable({ leads }: { leads: LeadWithDetails[] }) {
             ))}
           </select>
         </div>
+        <ExportLeadsButton leads={filtered} filename={`leads-${selectedTier === 'all' ? 'all' : selectedTier}-${selectedCity === 'all' ? 'all' : selectedCity.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.csv`} />
       </div>
 
       {/* Table */}
